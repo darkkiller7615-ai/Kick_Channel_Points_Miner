@@ -1,6 +1,8 @@
 import threading
 import json
-from flask import Flask, render_template_string, jsonify
+from flask import Flask, render_template_string, jsonify, request, Response
+import os
+import hmac
 from loguru import logger
 from datetime import datetime
 
@@ -16,6 +18,28 @@ shared_context = {
 }
 
 app = Flask(__name__)
+
+@app.before_request
+def protect_dashboard():
+    username = os.environ.get("DASHBOARD_USER", "")
+    password = os.environ.get("DASHBOARD_PASSWORD", "")
+
+    # Fail closed if credentials were not configured.
+    if not username or not password:
+        return "Dashboard authentication is not configured", 503
+
+    auth = request.authorization
+    if (
+        auth is None
+        or not hmac.compare_digest(auth.username or "", username)
+        or not hmac.compare_digest(auth.password or "", password)
+    ):
+        return Response(
+            "Authentication required",
+            401,
+            {"WWW-Authenticate": 'Basic realm="Kick Miner Dashboard"'},
+        )
+
 
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
