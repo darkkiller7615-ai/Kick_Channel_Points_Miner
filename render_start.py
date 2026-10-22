@@ -15,7 +15,7 @@ def required(name):
 # Comma-separated account names and tokens
 account_names = [
     name.strip()
-    for name in required("KICK_ACCOUNT_NAMES").split(",")
+    for name in required("KICK_ALIAS").split(",")
     if name.strip()
 ]
 
