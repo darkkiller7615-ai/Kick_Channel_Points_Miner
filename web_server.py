@@ -19,12 +19,18 @@ shared_context = {
 
 app = Flask(__name__)
 
+@app.route("/health", methods=["GET"])
+def health():
+    return "OK", 200
+    
 @app.before_request
 def protect_dashboard():
+    if request.path == "/health":
+        return None
+
     username = os.environ.get("DASHBOARD_USER", "")
     password = os.environ.get("DASHBOARD_PASSWORD", "")
 
-    # Fail closed if credentials were not configured.
     if not username or not password:
         return "Dashboard authentication is not configured", 503
 
