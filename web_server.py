@@ -1,3 +1,33 @@
+import threading
+import json
+import os
+import hmac
+import secrets
+
+from datetime import datetime, timedelta
+from functools import wraps
+from flask import (
+    Flask,
+    render_template_string,
+    jsonify,
+    request,
+    redirect,
+    url_for,
+    session,
+)
+from loguru import logger
+
+app = Flask(__name__)
+
+app.secret_key = os.environ.get("SESSION_SECRET", "")
+
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=1),
+)
+
 
 LOGIN_TEMPLATE = """
 <!DOCTYPE html>
@@ -131,3 +161,62 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+    
+@app.route('/')
+def dashboard():
+    return render_template_string(HTML_TEMPLATE)
+
+
+def start_server(streamers_data, port=5000):
+    global _account_manager
+
+    # Prefer Render's assigned port when available.
+    port = int(os.environ.get("PORT", port))
+
+    if hasattr(streamers_data, "get_all_status"):
+        _account_manager = streamers_data
+        with data_lock:
+            names = _account_manager.get_all_streamers_flat()
+            shared_context["streamers"] = {s: "" for s in names}
+            shared_context["points"] = {s: 0 for s in names}
+            shared_context["last_update"] = {s: "N/A" for s in names}
+            shared_context["stream_status"] = {
+                s: "offline" for s in names
+            }
+            shared_context["status"] = "Active"
+
+    elif isinstance(streamers_data, list):
+        with data_lock:
+            shared_context["streamers"] = {
+                s: "" for s in streamers_data
+            }
+            shared_context["points"] = {
+                s: 0 for s in streamers_data
+            }
+            shared_context["last_update"] = {
+                s: "N/A" for s in streamers_data
+            }
+            shared_context["stream_status"] = {
+                s: "offline" for s in streamers_data
+            }
+            shared_context["status"] = "Active"
+
+    elif isinstance(streamers_data, dict):
+        with data_lock:
+            shared_context["streamers"] = streamers_data
+            shared_context["status"] = "Active"
+
+    def run():
+        import logging
+        logging.getLogger("werkzeug").setLevel(logging.ERROR)
+        logger.info(
+            f"Dashboard starting on 0.0.0.0:{port}"
+        )
+        app.run(
+            host="0.0.0.0",
+            port=port,
+            debug=False,
+            use_reloader=False,
+        )
+
+    threading.Thread(target=run, daemon=True).start()
