@@ -27,17 +27,26 @@ tokens = [
 
 if len(account_names) != len(tokens):
     raise RuntimeError(
-        "KICK_ACCOUNT_NAMES and KICK_TOKENS must have the same number of entries"
+        "KICK_ALIAS and KICK_TOKENS must have the same number of entries"
     )
 
-streamers = [
-    s.strip()
-    for s in required("KICK_STREAMERS").split(",")
-    if s.strip()
+# Each account gets its own streamer list.
+# Use | to separate accounts and commas to separate streamers.
+streamer_groups = [
+    [s.strip() for s in group.split(",") if s.strip()]
+    for group in required("KICK_STREAMERS").split("|")
 ]
 
-if not streamers:
-    raise RuntimeError("KICK_STREAMERS must contain a username")
+if len(streamer_groups) != len(account_names):
+    raise RuntimeError(
+        "KICK_STREAMERS must contain one streamer group per account, "
+        "separated by |"
+    )
+
+if any(not group for group in streamer_groups):
+    raise RuntimeError(
+        "Every account must have at least one streamer"
+    )
 
 config = {
     "Language": os.getenv("LANGUAGE", "en"),
@@ -62,7 +71,9 @@ config = {
                 os.getenv("MAX_CONCURRENT", "2")
             ),
         }
-        for name, token in zip(account_names, tokens)
+        for name, token, streamers in zip(
+            account_names, tokens, streamer_groups
+        )
     ],
     "Check_interval": 120,
     "Reconnect_cooldown": 600,
